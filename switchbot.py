@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pexpect
-import sys
+import sys, time
 from bluepy.btle import Scanner, DefaultDelegate
 import binascii
 
-class ScanDelegate(DefaultDelegate): 
-    def __init__(self): 
+class ScanDelegate(DefaultDelegate):
+    def __init__(self):
         DefaultDelegate.__init__(self)
-        
+
 class DevScanner(DefaultDelegate):
     def __init__( self ):
         DefaultDelegate.__init__(self)
@@ -29,7 +29,7 @@ class DevScanner(DefaultDelegate):
     def dongle_start(self):
         self.con = pexpect.spawn('hciconfig hci0 up')
         time.sleep(1)
-        
+
     def dongle_restart(self):
         print "restart bluetooth dongle"
         self.con = pexpect.spawn('hciconfig hci0 down')
@@ -38,8 +38,10 @@ class DevScanner(DefaultDelegate):
         time.sleep(3)
 
     def scan_loop(self):
-        service_uuid = '1bc5d5a50200b89fe6114d22000da2cb'
-        menufacturer_id = '5900f46d2c8a5f31'
+        #service_uuid = '1bc5d5a50200b89fe6114d22000da2cb'
+        service_uuid = 'cba20d00-224d-11e6-9fb8-0002a5d5c51b'
+        #menufacturer_id = '5900f46d2c8a5f31'
+        menufacturer_id = '5900e958e4064e78'
         dev_list =[]
         bot_list =[]
         enc_list =[]
@@ -49,44 +51,48 @@ class DevScanner(DefaultDelegate):
         if pnum==0:
             self.con = pexpect.spawn('hcitool lescan')
             #self.con.expect('LE Scan ...', timeout=5)
-            scanner = Scanner().withDelegate(DevScanner()) 
+            scanner = Scanner().withDelegate(DevScanner())
             devices = scanner.scan(5.0)
             print "Start scanning..."
         else:
             raise Error("no bluetooth error")
 
+        #import pdb; pdb.set_trace()
         for dev in devices:
             mac = 0
             for (adtype, desc, value) in dev.getScanData():
+                #print dev.addr
                 #print adtype,desc,value
                 if desc == '16b Service Data' :
-                    model = binascii.a2b_hex(value[4:6])
-                    mode  = binascii.a2b_hex(value[6:8])
+                    # 22 16b Service Data 000d4800
+                    model = binascii.a2b_hex(value[4:6]) # 'H'
+                    mode  = binascii.a2b_hex(value[6:8]) # '\x00'
                 if desc == 'Local name' and value == "WoHand":
                     mac   = dev.addr
                     model = 'H'
                     mode  = 0
                 elif desc == 'Complete 128b Services' and value == service_uuid :
+                    # 7 Complete 128b Services cba20d00-224d-11e6-9fb8-0002a5d5c51b
                     mac = dev.addr
-                    
+
             if mac != 0 :
                 #print binascii.b2a_hex(model),binascii.b2a_hex(mode)
-                dev_list.append([mac,model,mode])           
-            
+                dev_list.append([mac,model,mode])
+
         #print dev_list
         for (mac, dev_type,mode) in dev_list:
             #print mac  ,dev_type
             if dev_type == 'L':
                 link_list.append(mac)
             if dev_type == 'H'  or ord(dev_type) == ord('L') + 128:
-                #print int(binascii.b2a_hex(mode),16) 
+                #print int(binascii.b2a_hex(mode),16)
                 if int(binascii.b2a_hex(mode),16) > 127 :
                     bot_list.append([mac,"Turn On"])
                     bot_list.append([mac,"Turn Off"])
                 else :
                     bot_list.append([mac,"Press"])
             if ord(dev_type) == ord('L') + 128:
-                enc_list.append([mac,"Press"])      
+                enc_list.append([mac,"Press"])
         #print bot_list
         print "scan timeout"
         return bot_list
@@ -132,7 +138,7 @@ def main():
         sys.exit()
     connect = pexpect.spawn('hciconfig hci0 up')
 
-    if len(sys.argv) == 3 or len(sys.argv) == 4: 
+    if len(sys.argv) == 3 or len(sys.argv) == 4:
 	dev = sys.argv[1]
         act = sys.argv[2] if len(sys.argv) < 4  else  ('Turn ' + sys.argv[3] )
         trigger_device([dev,act])
@@ -165,7 +171,7 @@ def main():
     	print('Usage: "sudo python switchbot.py [mac_addr  cmd]" or "sudo python switchbot.py"')
 
     connect = pexpect.spawn('hciconfig')
-    
+
     sys.exit()
 
 if __name__ == "__main__":
